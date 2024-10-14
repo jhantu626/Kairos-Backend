@@ -1,8 +1,10 @@
 package io.app.service.impl;
 
+import io.app.dto.ApiResponse;
 import io.app.dto.RequestLogin;
 import io.app.dto.ResponseToken;
 import io.app.dto.UserDto;
+import io.app.exceptions.DuplicateFoundException;
 import io.app.exceptions.ResourceNotFoundException;
 import io.app.models.User;
 import io.app.repository.UserRepository;
@@ -12,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +32,10 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public ResponseToken register(UserDto userDto) {
+        User isUserPresent=repository.findByEmail(userDto.getEmail()).get();
+        if(isUserPresent!=null){
+            throw new DuplicateFoundException("User already exist!");
+        }
         log.info("Register Api called at: [{}]",new Date());
         User user=new User();
         user.setUserId(UUID.randomUUID().toString());
@@ -46,12 +53,16 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public ResponseToken login(RequestLogin requestLogin) {
         log.info("Login Api Called at [{}]",new Date());
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        requestLogin.getEmail(),
-                        requestLogin.getPassword()
-                )
-        );
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            requestLogin.getEmail(),
+                            requestLogin.getPassword()
+                    )
+            );
+        }catch (AuthenticationException e){
+            throw new ResourceNotFoundException("Invalid Credentials!");
+        }
         User user=repository.findByEmail(requestLogin.getEmail())
                 .orElseThrow(()->new ResourceNotFoundException("Invalid Credentials!"));
         boolean isPasswordMatch=passwordEncoder.matches(requestLogin.getPassword(),user.getPassword());
@@ -59,6 +70,9 @@ public class AuthServiceImpl implements AuthService {
             throw new ResourceNotFoundException("Invalid Credentials!");
         }
         String jwtToken=jwtService.generateToken(user);
-        return null;
+        return ResponseToken.builder()
+                .token(jwtToken)
+                .status(true)
+                .build();
     }
 }

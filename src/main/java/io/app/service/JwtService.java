@@ -21,6 +21,7 @@ public class JwtService {
     @Value("${credentials.jwt.secret}")
     private String JWT_SECRET;
 
+
     public String extractUsername(String token){
         return extractClaims(token,Claims::getSubject);
     }
